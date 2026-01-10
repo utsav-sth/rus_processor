@@ -1,0 +1,30 @@
+batch_jobs:
+  
+  - input:  "input/input.rus.09282025.root"
+    output: "output/output.xzyzglb.09292025.rus.09282025.root"
+
+# Optional single-run defaults (used if batch_jobs is empty/missing)
+input_file:  "input/input.rus.06012025.root"
+output_file: "output/output.xzyzglb.09292025.rus.06012025.root"
+
+event_reducer:
+  enabled: false
+
+xz_tracklet_builder:
+  enabled: true
+
+yz_tracklet_builder:
+  enabled: true
+  # When skipping XZ, give a seed; (0,0) works to start, or tune here.
+  seed:
+    x0: 0.0
+    tx: 0.0
+
+global_tracking:
+  z_kmag_bend_cm: 1042.017   # KMAG bend z (cm)
+  d0_x_det_ids: [3, 4]       # D0 X/X′ plane IDs
+  d0_x_window_cm: 0.40       # absolute window in cm for D0 matching
+  pt_kick_kmag: 0.3819216         # KMAG kick in GeV/c (matches KTracker scale)
+  require_both_views: true
+
+
