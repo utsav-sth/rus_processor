@@ -1,11 +1,10 @@
 batch_jobs:
-  
-  - input:  "input/input.rus.09282025.root"
-    output: "output/output.xzyzglb.09292025.rus.09282025.root"
+  - input:  "input/input.rus.root"
+    output: "output/output.rus.root"
 
 # Optional single-run defaults (used if batch_jobs is empty/missing)
-input_file:  "input/input.rus.06012025.root"
-output_file: "output/output.xzyzglb.09292025.rus.06012025.root"
+input_file:  "input/input.rus.root"
+output_file: "output/output.rus..root"
 
 event_reducer:
   enabled: false
@@ -15,7 +14,6 @@ xz_tracklet_builder:
 
 yz_tracklet_builder:
   enabled: true
-  # When skipping XZ, give a seed; (0,0) works to start, or tune here.
   seed:
     x0: 0.0
     tx: 0.0
@@ -23,8 +21,27 @@ yz_tracklet_builder:
 global_tracking:
   z_kmag_bend_cm: 1042.017   # KMAG bend z (cm)
   d0_x_det_ids: [3, 4]       # D0 X/X′ plane IDs
-  d0_x_window_cm: 0.40       # absolute window in cm for D0 matching
+  # d0_x_window_cm: 0.40       # absolute window in cm for D0 matching
+  d0_x_window_cm: 5.0
   pt_kick_kmag: 0.3819216         # KMAG kick in GeV/c (matches KTracker scale)
   require_both_views: true
 
+vertexing:
+  enabled: true
+
+  # These defaults mirror recoConsts.cc defaults in e1039-core.
+  # Units: cm.
+  z_target_cm:   -300.0
+  z_dump_cm:       42.0
+  z_upstream_cm: -700.0
+  x_beam_cm: 0.0
+  y_beam_cm: 0.0
+  sigx_beam_cm: 0.3
+  sigy_beam_cm: 0.3
+
+dimuon:
+  enabled: true
+  mass_min: 0.2
+  mass_max: 20.0
+  require_opposite_charge: false
 
