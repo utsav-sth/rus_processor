@@ -33,33 +33,22 @@
 #endif
 
 static __device__ __forceinline__ bool is_uv(const int d) {
-    return (d == 13 || d == 14 || d == 17 || d == 18 || d == 19 || d == 20 || d == 23 || d == 24 || d == 25 || d == 26 || d == 29 || d == 30);
+    return (d == 13 || d == 14 || d == 17 || d == 18 || d == 19 || d == 20 ||
+            d == 23 || d == 24 || d == 25 || d == 26 || d == 29 || d == 30);
 }
 
 static __device__ __forceinline__ int station_of(int d) {
-    if (d == 13 || d == 14) {
-        return 1;
-    }
-    if (d >= 17 && d <= 20) {
-        return 2;
-    }
-    if (d >= 23 && d <= 26) {
-        return 3;
-    }
-    if (d == 29 || d == 30) {
-        return 4;
-    }
+    if (d == 13 || d == 14) return 1;
+    if (d >= 17 && d <= 20) return 2;
+    if (d >= 23 && d <= 26) return 3;
+    if (d == 29 || d == 30) return 4;
     return 0;
 }
 
 static __device__ __forceinline__ float safe_sigma_cm(const gPlane& pl, int det) {
     float s = pl.resolution[det];
-    if (DRIFT_IS_MM) {
-        s *= 0.1f;
-    }
-    if (!(isfinite(s) && s > 0.005f && s < 0.5f)) {
-        s = 0.03f;
-    }
+    if (DRIFT_IS_MM) s *= 0.1f;
+    if (!(isfinite(s) && s > 0.005f && s < 0.5f)) s = 0.03f;
     return s;
 }
 
@@ -70,35 +59,36 @@ static __device__ __forceinline__ float sigmaY_for_det(const gPlane& plane, int 
     const float dpy = S * plane.deltapy[det];
     const float norm_xy = sqrtf(dpx * dpx + dpy * dpy);
     const float eps = 1e-6f;
-    if (!(isfinite(norm_xy) && norm_xy > eps)) {
-        return sig * 10.0f;
-    }
+    if (!(isfinite(norm_xy) && norm_xy > eps)) return sig * 10.0f;
     const float uY = fabsf(dpx) / norm_xy;
-    if (uY < eps) {
-        return sig * 10.0f;
-    }
+    if (uY < eps) return sig * 10.0f;
     return sig / uY;
 }
 
-static __device__ inline bool yz_from_uv_and_seed_LR(const gPlane& pl, int detid, int elid, float x0, float tx, float drift_cm, int hitsign, float& Ycm, float& Zcm) {
+static __device__ inline bool yz_from_uv_and_seed_LR(const gPlane& pl, int detid, int elid,
+                                                     float x0, float tx, float drift_cm,
+                                                     int hitsign, float& Ycm, float& Zcm) {
     const float S = GEOM_IS_MM ? 0.1f : 1.0f;
+
     const float p1x = S * (pl.p1x_w1[detid] + pl.dp1x[detid] * (elid - 1));
     const float p1y = S * (pl.p1y_w1[detid] + pl.dp1y[detid] * (elid - 1));
     const float p1z = S * (pl.p1z_w1[detid] + pl.dp1z[detid] * (elid - 1));
+
     const float dpx = S * pl.deltapx[detid];
     const float dpy = S * pl.deltapy[detid];
     const float dpz = S * pl.deltapz[detid];
+
     const float z0 = pl.z[detid];
+
     const float denom = (dpx - tx * dpz);
-    if (!isfinite(denom) || fabsf(denom) < 1e-10f) {
-        return false;
-    }
+    if (!isfinite(denom) || fabsf(denom) < 1e-10f) return false;
+
     const float t = (x0 + tx * (z0 + p1z) - p1x) / denom;
     float Yabs = p1y + t * dpy;
     const float Zabs = z0 + (p1z + t * dpz);
-    if (!(isfinite(Yabs) && isfinite(Zabs))) {
-        return false;
-    }
+
+    if (!(isfinite(Yabs) && isfinite(Zabs))) return false;
+
     if (hitsign != 0 && isfinite(drift_cm) && drift_cm > 0.f) {
         const float norm_xy = sqrtf(dpx * dpx + dpy * dpy);
         const float eps = 1e-6f;
@@ -109,33 +99,35 @@ static __device__ inline bool yz_from_uv_and_seed_LR(const gPlane& pl, int detid
             Yabs += hitsign * drift_cm;
         }
     }
+
     Ycm = Yabs;
     Zcm = Zabs;
     return true;
 }
 
-static __device__ inline bool wls_fit(const float* Z, const float* Y, const float* W, int N, float& y0, float& ty, float& ey0, float& ety, float& chi2) {
-    if (N < 2) {
-        return false;
-    }
+static __device__ inline bool wls_fit(const float* Z, const float* Y, const float* W, int N,
+                                      float& y0, float& ty, float& ey0, float& ety, float& chi2) {
+    if (N < 2) return false;
+
     double Sw = 0, Szw = 0, Szzw = 0, Syw = 0, Szyw = 0;
     #pragma unroll
     for (int i = 0; i < N; ++i) {
         const double w = W[i], z = Z[i], y = Y[i];
-        Sw += w;
+        Sw  += w;
         Szw += w * z;
         Szzw += w * z * z;
         Syw += w * y;
         Szyw += w * z * y;
     }
+
     const double D = Sw * Szzw - Szw * Szw;
-    if (!(isfinite(D) && fabs(D) > 1e-12)) {
-        return false;
-    }
-    ty = (float)((Sw * Szyw - Szw * Syw) / D);
-    y0 = (float)((Szzw * Syw - Szw * Szyw) / D);
+    if (!(isfinite(D) && fabs(D) > 1e-12)) return false;
+
+    ty  = (float)((Sw * Szyw - Szw * Syw) / D);
+    y0  = (float)((Szzw * Syw - Szw * Szyw) / D);
     ety = (float)sqrt(fabs(Sw / D));
     ey0 = (float)sqrt(fabs(Szzw / D));
+
     double c2 = 0;
     #pragma unroll
     for (int i = 0; i < N; ++i) {
@@ -156,107 +148,98 @@ __global__ void gKernel_YZ_tracking(const float* __restrict__ dHits,
                                     const bool* __restrict__ HasTooManyHits,
                                     const int nEvents) {
     const int evt = blockIdx.x;
-    if (evt >= nEvents) {
-        return;
-    }
+    if (evt >= nEvents) return;
+
     if (HasTooManyHits && HasTooManyHits[evt]) {
         nYZ_out[evt] = 0;
         return;
     }
+
     const gPlane& plane = *reinterpret_cast<const gPlane*>(dPlane);
     const int nh = dNHits[evt];
     gHits hits(const_cast<float*>(dHits) + evt * MAX_HITS_PER_EVENT * 6, nh);
+
     const unsigned int NX = nXZ[evt];
+    const unsigned int NXcap = (NX < (unsigned)MAX_TRACKLETS_PER_EVENT) ? NX : (unsigned)MAX_TRACKLETS_PER_EVENT;
     constexpr int STRIDE = 160;
-    for (unsigned int i = 0; i < NX && i < MAX_TRACKLETS_PER_EVENT; ++i) {
+
+    // init outputs [0..NXcap-1] to NAN
+    for (unsigned int i = 0; i < NXcap; ++i) {
         float* dst = (float*)dYZ_out + ((size_t)evt * MAX_TRACKLETS_PER_EVENT + i) * STRIDE;
         #pragma unroll
-        for (int f = 0; f < STRIDE; ++f) {
-            dst[f] = NAN;
-        }
+        for (int f = 0; f < STRIDE; ++f) dst[f] = NAN;
     }
+
     unsigned int kept = 0;
-    for (unsigned int i = 0; i < NX && i < MAX_TRACKLETS_PER_EVENT; ++i) {
+
+    for (unsigned int i = 0; i < NXcap; ++i) {
         const float* seed = (const float*)dXZ + ((size_t)evt * MAX_TRACKLETS_PER_EVENT + i) * STRIDE;
         const float tx = seed[5];
         const float x0 = seed[7];
-        if (!isfinite(tx) || !isfinite(x0)) {
-            continue;
-        }
+        if (!isfinite(tx) || !isfinite(x0)) continue;
+
         const int HMAX = 128;
         float Z0[HMAX], Y0[HMAX], W0[HMAX];
         int n0 = 0;
         int sHit[5] = {0, 0, 0, 0, 0};
+
         for (int h = 0; h < nh && n0 < HMAX; ++h) {
             const int det = (int)hits.chan(h);
-            if (!is_uv(det)) {
-                continue;
-            }
+            if (!is_uv(det)) continue;
+
             const int el = (int)hits.pos(h);
             float y, z;
-            if (!yz_from_uv_and_seed_LR(plane, det, el, x0, tx, 0.f, 0, y, z)) {
-                continue;
-            }
+            if (!yz_from_uv_and_seed_LR(plane, det, el, x0, tx, 0.f, 0, y, z)) continue;
+
             const float sY = sigmaY_for_det(plane, det);
             const float w = 1.f / (sY * sY);
             Z0[n0] = z;
             Y0[n0] = y;
             W0[n0] = w;
             ++n0;
+
             int st = station_of(det);
-            if (st >= 1 && st <= 4) {
-                sHit[st]++;
-            }
+            if (st >= 1 && st <= 4) sHit[st]++;
         }
-        if (n0 < 2) {
-            continue;
-        }
+
+        if (n0 < 2) continue;
+
         #if REQUIRE_TWO_STATIONS
         int nStations = (sHit[1] > 0) + (sHit[2] > 0) + (sHit[3] > 0) + (sHit[4] > 0);
-        if (nStations < 2) {
-            continue;
-        }
+        if (nStations < 2) continue;
         #endif
+
         float y0, ty, ey0, ety, chi2;
-        if (!wls_fit(Z0, Y0, W0, n0, y0, ty, ey0, ety, chi2)) {
-            continue;
-        }
+        if (!wls_fit(Z0, Y0, W0, n0, y0, ty, ey0, ety, chi2)) continue;
+
         float Z[HMAX], Y[HMAX], W[HMAX];
         int n = 0;
+
         for (int h = 0; h < nh && n < HMAX; ++h) {
             const int det = (int)hits.chan(h);
-            if (!is_uv(det)) {
-                continue;
-            }
+            if (!is_uv(det)) continue;
+
             const int el = (int)hits.pos(h);
             float drift_cm = hits.drift(h);
-            if (DRIFT_IS_MM) {
-                drift_cm *= 0.1f;
-            }
+            if (DRIFT_IS_MM) drift_cm *= 0.1f;
+
             float yL = 0, zL = 0, yR = 0, zR = 0;
             bool okL = yz_from_uv_and_seed_LR(plane, det, el, x0, tx, drift_cm, -1, yL, zL);
             bool okR = yz_from_uv_and_seed_LR(plane, det, el, x0, tx, drift_cm, +1, yR, zR);
-            if (!okL && !okR) {
-                continue;
-            }
+            if (!okL && !okR) continue;
+
             float ypick, zpick;
             if (okL && okR) {
                 const float rL = fabsf(yL - (y0 + ty * zL));
                 const float rR = fabsf(yR - (y0 + ty * zR));
-                if (rL <= rR) {
-                    ypick = yL;
-                    zpick = zL;
-                } else {
-                    ypick = yR;
-                    zpick = zR;
-                }
+                if (rL <= rR) { ypick = yL; zpick = zL; }
+                else          { ypick = yR; zpick = zR; }
             } else if (okL) {
-                ypick = yL;
-                zpick = zL;
+                ypick = yL; zpick = zL;
             } else {
-                ypick = yR;
-                zpick = zR;
+                ypick = yR; zpick = zR;
             }
+
             const float sY = sigmaY_for_det(plane, det);
             const float w = 1.f / (sY * sY);
             Z[n] = zpick;
@@ -264,15 +247,12 @@ __global__ void gKernel_YZ_tracking(const float* __restrict__ dHits,
             W[n] = w;
             ++n;
         }
-        if (n < 2) {
-            continue;
-        }
-        if (!wls_fit(Z, Y, W, n, y0, ty, ey0, ety, chi2)) {
-            continue;
-        }
-        if (!(isfinite(y0) && isfinite(ty)) || fabsf(y0) > Y0_MAX || fabsf(ty) > TY_MAX) {
-            continue;
-        }
+
+        if (n < 2) continue;
+        if (!wls_fit(Z, Y, W, n, y0, ty, ey0, ety, chi2)) continue;
+
+        if (!(isfinite(y0) && isfinite(ty)) || fabsf(y0) > Y0_MAX || fabsf(ty) > TY_MAX) continue;
+
         float* out = (float*)dYZ_out + ((size_t)evt * MAX_TRACKLETS_PER_EVENT + i) * STRIDE;
         out[0] = 1;
         out[1] = evt;
@@ -282,9 +262,13 @@ __global__ void gKernel_YZ_tracking(const float* __restrict__ dHits,
         out[7] = y0;
         out[10] = ety;
         out[12] = ey0;
+
         ++kept;
     }
-    nYZ_out[evt] = kept;
+
+    // This kernel does NOT compact outputs; it writes into slot i (seed index).
+    // Returning kept would hide valid solutions at higher i.
+    nYZ_out[evt] = NXcap;
 }
 
 extern "C" void launch_gKernel_YZ_tracking(float* dHits,
