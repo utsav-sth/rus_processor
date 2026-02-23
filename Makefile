@@ -1,4 +1,4 @@
-all: utils/libevent_reducer.so utils/libxz_tracking.so utils/libyz_tracking.so utils/libglobal_tracking.so
+all: utils/libevent_reducer.so utils/libxz_tracking.so utils/libyz_tracking.so utils/libglobal_tracking.so utils/libvertexing.so utils/libdimuon_building.so
 
 NVCC ?= nvcc
 
@@ -55,8 +55,28 @@ utils/libglobal_tracking.so: $(GLB_OBJ)
 	@$(NVCC) $(NVCCFLAGS) -shared -rdc=true -o $@ $^ $(LIBS)
 	@echo "$@ built"
 
+VTX_OBJ = kernels/gkernel_vertexing.o
+$(VTX_OBJ): kernels/gkernel_vertexing.cu kernels/include/gPlane.cuh
+	@echo "CU to O $@"
+	@$(NVCC) $(NVCCFLAGS) -dc -rdc=true $(INCDIRS) -o $@ $<
+
+utils/libvertexing.so: $(VTX_OBJ)
+	@echo "O to SO $@"
+	@$(NVCC) $(NVCCFLAGS) -shared -rdc=true -o $@ $^ $(LIBS)
+	@echo "$@ built"
+
+DIMU_OBJ = kernels/gkernel_dimuon_building.o
+$(DIMU_OBJ): kernels/gkernel_dimuon_building.cu kernels/include/gHits.cuh kernels/include/gPlane.cuh
+	@echo "CU to O $@"
+	@$(NVCC) $(NVCCFLAGS) -dc -rdc=true $(INCDIRS) -o $@ $<
+
+utils/libdimuon_building.so: $(DIMU_OBJ)
+	@echo "O to SO $@"
+	@$(NVCC) $(NVCCFLAGS) -shared -rdc=true -o $@ $^ $(LIBS)
+	@echo "$@ built"
+
 clean:
-	@rm -f kernels/*.o utils/libevent_reducer.so utils/libxz_tracking.so utils/libyz_tracking.so utils/libglobal_tracking.so
+	@rm -f kernels/*.o utils/libevent_reducer.so utils/libxz_tracking.so utils/libyz_tracking.so utils/libglobal_tracking.so utils/libvertexing.so utils/libdimuon_building.so
 	@echo "Cleaned"
 
 .PHONY: all clean
