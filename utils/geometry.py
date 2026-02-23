@@ -82,3 +82,37 @@ def load_gplane(path: str) -> np.ndarray:
     blob_u8 = gp.tobytes(order="C")
     blob_f32 = np.frombuffer(blob_u8, dtype=np.float32)
     return blob_f32
+
+
+def load_gplane_with_vertex_constants(path: str, settings: dict) -> np.ndarray:
+    """Load the base gPlane blob and append 7 float32 "extras" used by vertexing.
+
+    Extras are appended as raw float32 words immediately after the gPlane struct
+    blob (so the CUDA kernel can read them via a fixed word offset).
+
+    Required keys in settings:
+      vertexing.z_target_cm
+      vertexing.z_dump_cm
+      vertexing.z_upstream_cm
+      vertexing.x_beam_cm
+      vertexing.sigx_beam_cm
+      vertexing.y_beam_cm
+      vertexing.sigy_beam_cm
+    """
+    base = load_gplane(path)
+
+    vtx = settings.get("vertexing", {})
+    extras = np.array(
+        [
+            float(vtx.get("z_target_cm", 0.0)),
+            float(vtx.get("z_dump_cm", 0.0)),
+            float(vtx.get("z_upstream_cm", 0.0)),
+            float(vtx.get("x_beam_cm", 0.0)),
+            float(vtx.get("sigx_beam_cm", 0.2)),
+            float(vtx.get("y_beam_cm", 0.0)),
+            float(vtx.get("sigy_beam_cm", 0.2)),
+        ],
+        dtype=np.float32,
+    )
+    return np.concatenate([base.astype(np.float32, copy=False), extras], axis=0)
+
